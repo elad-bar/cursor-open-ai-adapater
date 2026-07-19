@@ -5,6 +5,8 @@ export interface Env {
   modelsCacheTtlSeconds: number;
   /** Streamable HTTP MCP gateway URL (org-level); unset disables MCP injection. */
   mcpGatewayUrl: string | undefined;
+  /** Seconds of SDK silence before emitting a streaming keepalive chunk; 0 disables. */
+  streamIdleHeartbeatSeconds: number;
 }
 
 let cached: Env | undefined;
@@ -39,12 +41,19 @@ export function getEnv(): Env {
     }
   }
 
+  const heartbeatRaw = process.env.STREAM_IDLE_HEARTBEAT_SECONDS ?? "30";
+  const streamIdleHeartbeatSeconds = Number.parseInt(heartbeatRaw, 10);
+  if (!Number.isFinite(streamIdleHeartbeatSeconds) || streamIdleHeartbeatSeconds < 0) {
+    throw new Error(`Invalid STREAM_IDLE_HEARTBEAT_SECONDS: ${heartbeatRaw}`);
+  }
+
   cached = {
     host: process.env.HOST ?? "0.0.0.0",
     port,
     cursorApiKeyFallback: process.env.CURSOR_API_KEY?.trim() || undefined,
     modelsCacheTtlSeconds,
     mcpGatewayUrl,
+    streamIdleHeartbeatSeconds,
   };
 
   return cached;

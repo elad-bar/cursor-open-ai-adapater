@@ -51,6 +51,7 @@ Models: `curl http://localhost:8080/v1/models -H "Authorization: Bearer $CURSOR_
 | `CURSOR_API_KEY` | — | Dev-only fallback if clients omit Bearer (not for multi-tenant) |
 | `MODELS_CACHE_TTL_SECONDS` | `600` | Cache TTL for `GET /v1/models` per API key |
 | `MCP_GATEWAY_URL` | — | Optional. Streamable HTTP MCP URL from your gateway provider. When set and clients send `X-Mcp-Gateway-Token`, chat completions attach that MCP to Cursor (Bearer = user token). See [mcp-gateway.md](mcp-gateway.md). |
+| `STREAM_IDLE_HEARTBEAT_SECONDS` | `30` | While **streaming**, emit invisible `delta.content` keepalives if the Cursor SDK is silent this long (seconds). Use `0` to disable. Helps Archestra’s ~40s “no response progress” UI during long tool runs; unrelated to `ARCHESTRA_LLM_PROXY_UPSTREAM_TIMEOUT_MS`. |
 
 There is **no** cloud repo or `cwd` configuration. The Cursor SDK always runs **local** agents with `cwd` = the gateway process current working directory (`process.cwd()`).
 
@@ -60,6 +61,7 @@ There is **no** cloud repo or `cwd` configuration. The Cursor SDK always runs **
 - Store each user’s **Cursor API key in Archestra** as the OpenAI-compatible provider API key; do not rely on `CURSOR_API_KEY` on the gateway in shared environments.
 - For MCP tools on Cursor models, set **`MCP_GATEWAY_URL`** on the gateway and configure **`X-Mcp-Gateway-Token`** on the provider (per user). See [mcp-gateway.md](mcp-gateway.md).
 - Increase upstream timeouts for chat completions — Cursor agent runs can take minutes.
+- For Archestra streaming chat, leave **`STREAM_IDLE_HEARTBEAT_SECONDS`** at the default (`30`) so long Cursor tool phases still advance upstream response progress without noisy tool logs.
 
 ### Local development
 

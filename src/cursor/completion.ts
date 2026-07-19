@@ -6,7 +6,11 @@ import {
   type SDKMessage,
   type TextBlock,
 } from "@cursor/sdk";
-import { getAgentWorkingDirectory } from "../config/env.js";
+import { getAgentWorkingDirectory, getEnv } from "../config/env.js";
+import {
+  STREAM_IDLE_HEARTBEAT_CHAR,
+  withIdleHeartbeats,
+} from "./stream-idle-heartbeat.js";
 
 export class CompletionRunError extends Error {
   readonly status = 500;
@@ -136,11 +140,30 @@ export async function* streamCompletion(params: {
   });
 
   try {
-    for await (const message of run.stream()) {
-      const text = assistantTextFromMessage(message);
-      if (text) {
-        yield text;
-      }
+    const heartbeatSeconds = getEnv().streamIdleHeartbeatSeconds;
+    const streamEvents = run.stream();
+
+    const textChunks =
+      heartbeatSeconds > 0
+        ? withIdleHeartbeats(streamEvents, {
+            intervalMs: heartbeatSeconds * 1000,
+            onHeartbeat: () => STREAM_IDLE_HEARTBEAT_CHAR,
+            onEvent: (message) => {
+              const text = assistantTextFromMessage(message);
+              return text || undefined;
+            },
+          })
+        : (async function* () {
+            for await (const message of streamEvents) {
+              const text = assistantTextFromMessage(message);
+              if (text) {
+                yield text;
+              }
+            }
+          })();
+
+    for await (const text of textChunks) {
+      yield text;
     }
 
     const result = await run.wait();
