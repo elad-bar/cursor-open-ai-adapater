@@ -39,7 +39,8 @@ pnpm start
 ## Docker
 
 ```bash
-docker compose up --build
+docker compose pull
+docker compose up
 ```
 
 See [docs/deployment.md](docs/deployment.md) for GHCR images, env vars, and Archestra setup.

@@ -34,7 +34,8 @@ Clients authenticate with **`Authorization: Bearer <cursor_api_key>`** — the s
 Copy [`.env.example`](../.env.example) to `.env` (optional `CURSOR_API_KEY` for dev-only fallback).
 
 ```bash
-docker compose up --build
+docker compose pull
+docker compose up
 ```
 
 Health: `curl http://localhost:8080/health`
