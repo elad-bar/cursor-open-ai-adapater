@@ -33,3 +33,18 @@ export function buildChunk(params: {
 }
 
 export const SSE_DONE = "data: [DONE]\n\n";
+
+export function buildUsageChunk(params: {
+  id: string;
+  model: string;
+  usage: NonNullable<ChatCompletionChunk["usage"]>;
+}): ChatCompletionChunk {
+  return {
+    id: params.id,
+    object: "chat.completion.chunk",
+    created: Math.floor(Date.now() / 1000),
+    model: params.model,
+    choices: [],
+    usage: params.usage,
+  };
+}

@@ -99,9 +99,10 @@ See [mcp-gateway.md](mcp-gateway.md).
 
 **Output**
 
-- Non-stream: OpenAI `chat.completion` with `choices[0].message.content`.
+- Non-stream: OpenAI `chat.completion` with `choices[0].message.content` and optional top-level `usage` when the SDK reports token counts.
 - Stream: SSE chunks with `delta.content` from SDK run stream (assistant text blocks in v1). When `STREAM_IDLE_HEARTBEAT_SECONDS` > 0, also emit minimal invisible keepalive content during SDK silence so OpenAI clients (e.g. Archestra) detect response progress during long tool runs.
-- Include `usage` when available; otherwise omit or estimate and document.
+- Stream usage: when the client sets `stream_options.include_usage: true`, emit a trailing `chat.completion.chunk` with empty `choices` and `usage` (same fields as non-stream) after the `finish_reason: stop` chunk, if the SDK reported usage.
+- Omit `usage` when the SDK does not report counts (non-stream and stream).
 
 **Errors**
 

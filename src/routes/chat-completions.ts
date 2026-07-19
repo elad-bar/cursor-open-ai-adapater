@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { CursorAgentError } from "@cursor/sdk";
+import { CursorAgentError, type RunResult } from "@cursor/sdk";
 import { Hono } from "hono";
 import { stream } from "hono/streaming";
 import { requireCursorApiKey } from "../auth/cursor-api-key.js";
@@ -11,10 +11,10 @@ import {
   runCompletion,
   streamCompletion,
 } from "../cursor/completion.js";
-import { buildChatCompletion } from "../openai/completions-mapper.js";
+import { buildChatCompletion, mapTokenUsage } from "../openai/completions-mapper.js";
 import { openaiError } from "../openai/errors.js";
 import { messagesToPrompt } from "../openai/messages-to-prompt.js";
-import { buildChunk, formatSseData, SSE_DONE } from "../openai/stream-sse.js";
+import { buildChunk, buildUsageChunk, formatSseData, SSE_DONE } from "../openai/stream-sse.js";
 import type { ChatCompletionRequest } from "../types/openai.js";
 
 export const chatCompletionsRoutes = new Hono();
@@ -63,7 +63,15 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
         const gen = streamCompletion({ apiKey, model, prompt, requestId, mcpServers });
         let first = true;
 
-        for await (const text of gen) {
+        let runResult: RunResult | undefined;
+
+        while (true) {
+          const { value, done } = await gen.next();
+          if (done) {
+            runResult = value;
+            break;
+          }
+          const text = value;
           await sseStream.write(
             formatSseData(
               buildChunk({
@@ -79,6 +87,16 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
         await sseStream.write(
           formatSseData(buildChunk({ id: streamId, model, finishReason: "stop" })),
         );
+
+        if (body.stream_options?.include_usage === true) {
+          const openAiUsage = mapTokenUsage(runResult?.usage);
+          if (openAiUsage) {
+            await sseStream.write(
+              formatSseData(buildUsageChunk({ id: streamId, model, usage: openAiUsage })),
+            );
+          }
+        }
+
         await sseStream.write(SSE_DONE);
       } catch (err) {
         const message =

@@ -1,7 +1,9 @@
 import type { TokenUsage } from "@cursor/sdk";
 import type { ChatCompletionResponse } from "../types/openai.js";
 
-function mapUsage(usage: TokenUsage | undefined): ChatCompletionResponse["usage"] {
+export function mapTokenUsage(
+  usage: TokenUsage | undefined,
+): ChatCompletionResponse["usage"] {
   if (!usage) return undefined;
   const prompt = usage.inputTokens ?? 0;
   const completion = usage.outputTokens ?? 0;
@@ -35,6 +37,6 @@ export function buildChatCompletion(params: {
         finish_reason: "stop",
       },
     ],
-    usage: mapUsage(params.usage),
+    usage: mapTokenUsage(params.usage),
   };
 }

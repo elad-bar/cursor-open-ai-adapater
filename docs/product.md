@@ -67,7 +67,7 @@ Invalid or missing keys → OpenAI-style `401` with a clear error (not a generic
 |------|------------|
 | Long runtimes vs chat timeouts | Document timeouts; consider async/job pattern in a later version |
 | Nested agents (Archestra + Cursor) | Product doc: use Cursor backend for repo/coding; keep Archestra for governance/MCP |
-| Token usage in Archestra | Return best-effort `usage` or document limitations |
+| Token usage in Archestra | Non-stream and streaming (`stream_options.include_usage`) return best-effort `usage` when the Cursor SDK reports counts; otherwise omit |
 | Model list drift | Cache with TTL; refresh on proxy configuration |
 
 ## Glossary
