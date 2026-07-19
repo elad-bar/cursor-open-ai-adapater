@@ -43,14 +43,16 @@ docker compose pull
 docker compose up
 ```
 
-See [docs/deployment.md](docs/deployment.md) for GHCR images, env vars, and Archestra setup.
+See [docs/deployment.md](docs/deployment.md) for GHCR images, env vars, and Archestra setup. For **MCP tools** on Cursor runs via a streamable HTTP gateway, see [docs/mcp-gateway.md](docs/mcp-gateway.md).
 
 ## Archestra
 
 1. Deploy this service where Archestra can reach it.
 2. Add a **custom OpenAI-compatible provider** with this service’s base URL.
-3. Set the provider **API key** to your **Cursor API key**.
+3. Set the provider **API key** to each user’s **Cursor API key**.
 4. Create an **LLM proxy**, pick models from `/v1/models`, attach to agents.
+
+**Optional — user MCP tools on Cursor runs:** set **`MCP_GATEWAY_URL`** (streamable HTTP URL from your MCP gateway provider) and configure the provider **extra header** **`X-Mcp-Gateway-Token`** with each user’s gateway token. Archestra example: [docs/mcp-gateway.md](docs/mcp-gateway.md).
 
 ## Important expectations
 
@@ -63,6 +65,7 @@ Each “completion” triggers a **local Cursor agent run** against the gateway 
 | [docs/product.md](docs/product.md) | Goals, users, scope, non-goals |
 | [docs/architecture.md](docs/architecture.md) | Components, API mapping, auth |
 | [docs/deployment.md](docs/deployment.md) | Docker, GHCR, Archestra |
+| [docs/mcp-gateway.md](docs/mcp-gateway.md) | MCP gateway injection (`MCP_GATEWAY_URL`, `X-Mcp-Gateway-Token`) |
 
 ## License
 

@@ -3,6 +3,8 @@ export interface Env {
   port: number;
   cursorApiKeyFallback: string | undefined;
   modelsCacheTtlSeconds: number;
+  /** Streamable HTTP MCP gateway URL (org-level); unset disables MCP injection. */
+  mcpGatewayUrl: string | undefined;
 }
 
 let cached: Env | undefined;
@@ -22,11 +24,27 @@ export function getEnv(): Env {
     throw new Error(`Invalid MODELS_CACHE_TTL_SECONDS: ${ttlRaw}`);
   }
 
+  const mcpGatewayRaw = process.env.MCP_GATEWAY_URL?.trim();
+  let mcpGatewayUrl: string | undefined;
+  if (mcpGatewayRaw) {
+    try {
+      const parsed = new URL(mcpGatewayRaw);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error(`MCP_GATEWAY_URL must be http or https, got ${parsed.protocol}`);
+      }
+      mcpGatewayUrl = parsed.toString().replace(/\/$/, "");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Invalid MCP_GATEWAY_URL: ${message}`);
+    }
+  }
+
   cached = {
     host: process.env.HOST ?? "0.0.0.0",
     port,
     cursorApiKeyFallback: process.env.CURSOR_API_KEY?.trim() || undefined,
     modelsCacheTtlSeconds,
+    mcpGatewayUrl,
   };
 
   return cached;

@@ -12,20 +12,27 @@ flowchart LR
     API[OpenAI-compatible HTTP API]
     Map[Request mapper]
     Auth[Auth: Bearer = Cursor key]
+    McpInject[Optional MCP inject]
   end
   subgraph cursor [Cursor]
     SDK[Cursor SDK]
     Local[Local agent on process cwd]
   end
+  subgraph remoteMcp [Remote MCP gateway]
+    MCP[MCP_GATEWAY_URL streamable HTTP]
+  end
   Archestra --> API
   LiteLLM --> API
   API --> Auth
   Auth --> Map
+  Map --> McpInject
+  McpInject --> SDK
   Map --> SDK
   SDK --> Local
+  Local -->|Bearer arch token| MCP
 ```
 
-Archestra (and LiteLLM) treat the gateway as an **OpenAI provider**: base URL + API key. The API key **is** the Cursor API key end-to-end.
+Archestra (and LiteLLM) treat the gateway as an **OpenAI provider**: base URL + API key. The API key **is** the Cursor API key end-to-end. When **`MCP_GATEWAY_URL`** is configured and the client sends **`X-Mcp-Gateway-Token`**, the gateway attaches an HTTP MCP server to the Cursor agent; Cursor calls the remote gateway with **Bearer** user token (not the Cursor key). This is **not** a proxy-native LLM tool loop—Cursor executes tools directly against MCP.
 
 ## Components
 
@@ -61,6 +68,7 @@ Authorization: Bearer cursor_...
 **Archestra setup**
 
 - Provider “OpenAI API key” = user’s or service account **Cursor API key**.
+- Optional: provider extra header **`X-Mcp-Gateway-Token`** = user’s MCP gateway token (Bearer when `MCP_GATEWAY_URL` is set on the gateway).
 - No separate gateway-issued API key required unless you add an optional second layer later.
 
 ### 3. Request mapper (chat completions)
@@ -79,6 +87,15 @@ Authorization: Bearer cursor_...
 **Runtime**
 
 The gateway always uses the Cursor SDK **local** runtime: `local: { cwd: process.cwd(), settingSources: [] }`. Operators choose the workspace by **where the process runs** (host repo root, `docker run -w`, volume mounts), not via environment variables.
+
+**MCP gateway injection (optional)**
+
+- Env **`MCP_GATEWAY_URL`**: deployment-level streamable HTTP endpoint.
+- Per request: header **`X-Mcp-Gateway-Token`** → `mcpServers.gateway` with `type: "http"`, `Authorization: Bearer <token>`.
+- If URL is set but header is absent, the agent runs **without** MCP (no 400).
+- Logs include `mcp_attached`; tokens are never logged.
+
+See [mcp-gateway.md](mcp-gateway.md).
 
 **Output**
 
@@ -131,8 +148,9 @@ The gateway **is** the compatibility layer; LiteLLM is optional upstream routing
 
 1. Deploy gateway (container/service) with network path from Archestra to gateway.
 2. Archestra custom provider: **OpenAI-compatible**, base URL = gateway, **API key = Cursor API key**.
-3. LLM proxy: select models from discovery endpoint.
-4. Agents use that proxy; the gateway runs **local** Cursor agents on its process working directory.
+3. Optional MCP: **`MCP_GATEWAY_URL`** on gateway + **`X-Mcp-Gateway-Token`** on provider per user ([mcp-gateway.md](mcp-gateway.md)).
+4. LLM proxy: select models from discovery endpoint.
+5. Agents use that proxy; the gateway runs **local** Cursor agents on its process working directory.
 
 **Nested orchestration warning:** Archestra runs an agent loop; Cursor runs another. Architecture assumes the gateway host/container is laid out so `process.cwd()` is the codebase you want Cursor to act on.
 
@@ -154,7 +172,7 @@ Gateway should run with explicit disposal of SDK agents (`with` / `await using`)
 
 ## Observability
 
-- Structured logs: `request_id`, `model`, `run_id`, `agent_id`, duration, `status`.
+- Structured logs: `request_id`, `model`, `run_id`, `agent_id`, `mcp_attached`, duration, `status`.
 - Metrics: request count, latency histogram, error rate by class (401 vs SDK vs run error).
 
 ## Implementation roadmap (suggested)

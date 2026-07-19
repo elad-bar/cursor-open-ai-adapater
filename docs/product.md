@@ -45,11 +45,13 @@ Invalid or missing keys → OpenAI-style `401` with a clear error (not a generic
 - Non-streaming and streaming assistant **text** in the response.
 - Documented behavior for Archestra LLM proxy setup.
 - **Local-only** Cursor SDK runtime (`process.cwd()` workspace; not user-configurable).
+- **MCP gateway injection:** when `MCP_GATEWAY_URL` is set, attach streamable HTTP MCP to Cursor runs when clients send **`X-Mcp-Gateway-Token`** (per-user Bearer to the remote gateway). See [mcp-gateway.md](mcp-gateway.md).
 
 ## Non-goals (v1)
 
 - Full parity with every OpenAI parameter (`logprobs`, `seed`, parallel tool calls, strict JSON schema guarantees).
-- Mapping Archestra MCP tools into OpenAI `tools` on the wire (Archestra and Cursor each have their own tool loops).
+- Mapping remote MCP into OpenAI `tools` on the wire for the LLM proxy to orchestrate (native proxy tool loop). Cursor runs its own MCP loop when injection is enabled.
+- Server-side lookup/cache of MCP URLs per user (URL is deployment env; auth is per-request header).
 - Replacing Cursor Dashboard for run inspection (link/log `agent_id` / `run_id` for operators).
 - Cloud agent runtime and repo URL configuration via env.
 

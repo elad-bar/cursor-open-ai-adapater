@@ -19,7 +19,7 @@ export function requireCursorApiKey(c: Context): string | Response {
   if (!key) {
     return c.json(
       openaiError(
-        "Missing Cursor API key. Set Authorization: Bearer <cursor_api_key> (same value as OpenAI API key in Archestra).",
+        "Missing Cursor API key. Set Authorization: Bearer <cursor_api_key> (same value as OpenAI API key on your provider).",
         "invalid_request_error",
         "missing_api_key",
       ),

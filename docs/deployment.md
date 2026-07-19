@@ -50,13 +50,15 @@ Models: `curl http://localhost:8080/v1/models -H "Authorization: Bearer $CURSOR_
 | `PORT` | `8080` | Listen port |
 | `CURSOR_API_KEY` | — | Dev-only fallback if clients omit Bearer (not for multi-tenant) |
 | `MODELS_CACHE_TTL_SECONDS` | `600` | Cache TTL for `GET /v1/models` per API key |
+| `MCP_GATEWAY_URL` | — | Optional. Streamable HTTP MCP URL from your gateway provider. When set and clients send `X-Mcp-Gateway-Token`, chat completions attach that MCP to Cursor (Bearer = user token). See [mcp-gateway.md](mcp-gateway.md). |
 
 There is **no** cloud repo or `cwd` configuration. The Cursor SDK always runs **local** agents with `cwd` = the gateway process current working directory (`process.cwd()`).
 
 ### Production (Archestra / K8s)
 
 - Deploy the container with a **working directory and volume** (or image layout) that contains the codebase agents should use.
-- Store the **Cursor API key in Archestra** as the OpenAI-compatible provider API key; do not rely on `CURSOR_API_KEY` on the gateway in shared environments.
+- Store each user’s **Cursor API key in Archestra** as the OpenAI-compatible provider API key; do not rely on `CURSOR_API_KEY` on the gateway in shared environments.
+- For MCP tools on Cursor models, set **`MCP_GATEWAY_URL`** on the gateway and configure **`X-Mcp-Gateway-Token`** on the provider (per user). See [mcp-gateway.md](mcp-gateway.md).
 - Increase upstream timeouts for chat completions — Cursor agent runs can take minutes.
 
 ### Local development
@@ -68,11 +70,13 @@ There is **no** cloud repo or `cwd` configuration. The Cursor SDK always runs **
 1. Deploy this gateway where Archestra can reach it (HTTPS recommended).
 2. Add a **custom OpenAI-compatible provider**:
    - **Base URL:** `https://<gateway-host>` (paths are `/v1/models`, `/v1/chat/completions`).
-   - **API key:** your **Cursor API key** (same as `Authorization: Bearer` toward the gateway).
-3. Create an **LLM proxy**, select models discovered from `/v1/models`.
-4. Attach the proxy to agents.
+   - **API key:** each user’s **Cursor API key** (same as `Authorization: Bearer` toward the gateway).
+   - **Optional extra header:** `X-Mcp-Gateway-Token` = user’s MCP gateway token (required for MCP when `MCP_GATEWAY_URL` is set on the gateway).
+3. Set gateway env **`MCP_GATEWAY_URL`** to your provider’s streamable HTTP MCP URL when you want Cursor agents to use that gateway.
+4. Create an **LLM proxy**, select models discovered from `/v1/models`.
+5. Attach the proxy to agents.
 
-Each completion runs a **local Cursor agent** against the gateway’s working directory. Plan workloads, filesystem layout, and timeouts accordingly.
+Each completion runs a **local Cursor agent** against the gateway’s working directory. Plan workloads, filesystem layout, and timeouts accordingly. MCP setup: [mcp-gateway.md](mcp-gateway.md).
 
 ## API surface
 
@@ -80,6 +84,6 @@ Each completion runs a **local Cursor agent** against the gateway’s working di
 |--------|------|------|
 | GET | `/health` | None |
 | GET | `/v1/models` | Bearer = Cursor key |
-| POST | `/v1/chat/completions` | Bearer = Cursor key |
+| POST | `/v1/chat/completions` | Bearer = Cursor key; optional `X-Mcp-Gateway-Token` for MCP |
 
 See [architecture.md](architecture.md) for error mapping and streaming behavior.

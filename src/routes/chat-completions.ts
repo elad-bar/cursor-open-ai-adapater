@@ -3,6 +3,8 @@ import { CursorAgentError } from "@cursor/sdk";
 import { Hono } from "hono";
 import { stream } from "hono/streaming";
 import { requireCursorApiKey } from "../auth/cursor-api-key.js";
+import { resolveMcpGatewayToken } from "../auth/mcp-gateway-token.js";
+import { buildMcpGatewayServers } from "../mcp/gateway-config.js";
 import {
   CompletionRunError,
   cursorAgentErrorStatus,
@@ -47,6 +49,9 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
   const requestId = c.get("requestId");
   const model = body.model.trim();
 
+  const mcpGatewayToken = resolveMcpGatewayToken(c);
+  const mcpServers = mcpGatewayToken ? buildMcpGatewayServers(mcpGatewayToken) : undefined;
+
   if (body.stream) {
     const streamId = `chatcmpl-${randomUUID()}`;
     return stream(c, async (sseStream) => {
@@ -55,7 +60,7 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
       c.header("Connection", "keep-alive");
 
       try {
-        const gen = streamCompletion({ apiKey, model, prompt, requestId });
+        const gen = streamCompletion({ apiKey, model, prompt, requestId, mcpServers });
         let first = true;
 
         for await (const text of gen) {
@@ -92,6 +97,7 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
       model,
       prompt,
       requestId,
+      mcpServers,
     });
     return c.json(
       buildChatCompletion({

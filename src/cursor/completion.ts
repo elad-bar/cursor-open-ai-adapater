@@ -19,12 +19,17 @@ export class CompletionRunError extends Error {
   }
 }
 
-function buildAgentOptions(apiKey: string, modelId: string): AgentOptions {
+function buildAgentOptions(
+  apiKey: string,
+  modelId: string,
+  mcpServers?: AgentOptions["mcpServers"],
+): AgentOptions {
   const model = { id: modelId };
 
   return {
     apiKey,
     model,
+    ...(mcpServers ? { mcpServers } : {}),
     local: {
       cwd: getAgentWorkingDirectory(),
       settingSources: [],
@@ -78,8 +83,16 @@ export async function runCompletion(params: {
   model: string;
   prompt: string;
   requestId: string;
+  mcpServers?: AgentOptions["mcpServers"];
 }): Promise<{ content: string; id: string; usage: RunResult["usage"] }> {
-  const options = buildAgentOptions(params.apiKey, params.model);
+  const options = buildAgentOptions(params.apiKey, params.model, params.mcpServers);
+
+  logCompletion({
+    request_id: params.requestId,
+    model: params.model,
+    mcp_attached: Boolean(params.mcpServers),
+    phase: "run_start",
+  });
 
   try {
     const result = await Agent.prompt(params.prompt, options);
@@ -106,8 +119,9 @@ export async function* streamCompletion(params: {
   model: string;
   prompt: string;
   requestId: string;
+  mcpServers?: AgentOptions["mcpServers"];
 }): AsyncGenerator<string, RunResult, void> {
-  const options = buildAgentOptions(params.apiKey, params.model);
+  const options = buildAgentOptions(params.apiKey, params.model, params.mcpServers);
 
   await using agent = await Agent.create(options);
   const run = await agent.send(params.prompt);
@@ -117,6 +131,7 @@ export async function* streamCompletion(params: {
     model: params.model,
     run_id: run.id,
     agent_id: run.agentId,
+    mcp_attached: Boolean(params.mcpServers),
     phase: "started",
   });
 
