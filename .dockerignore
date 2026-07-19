@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.github
+docs
+.env
+.env.*
+!.env.example
+*.md
+test
+.cursor
+*.log

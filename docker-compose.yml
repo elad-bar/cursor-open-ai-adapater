@@ -1,0 +1,23 @@
+services:
+  gateway:
+    build: .
+    image: cursor-sdk-open-ai:local
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      CURSOR_RUNTIME: ${CURSOR_RUNTIME:-cloud}
+      CURSOR_CLOUD_REPOS: ${CURSOR_CLOUD_REPOS:-}
+      CURSOR_LOCAL_CWD: ${CURSOR_LOCAL_CWD:-.}
+      MODELS_CACHE_TTL_SECONDS: ${MODELS_CACHE_TTL_SECONDS:-600}
+    env_file:
+      - path: .env
+        required: false
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
