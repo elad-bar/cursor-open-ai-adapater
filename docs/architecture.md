@@ -15,15 +15,13 @@ flowchart LR
   end
   subgraph cursor [Cursor]
     SDK[Cursor SDK]
-    Cloud[Cloud agent VM]
-    Local[Local agent cwd]
+    Local[Local agent on process cwd]
   end
   Archestra --> API
   LiteLLM --> API
   API --> Auth
   Auth --> Map
   Map --> SDK
-  SDK --> Cloud
   SDK --> Local
 ```
 
@@ -80,12 +78,7 @@ Authorization: Bearer cursor_...
 
 **Runtime**
 
-| Mode | When | SDK options |
-|------|------|-------------|
-| Cloud (default for Archestra) | Gateway env / extension | `cloud: { repos: [...] }` |
-| Local | Dev machine | `local: { cwd }` |
-
-Repo URL and runtime are **gateway configuration**, not standard OpenAI fields—env vars or future `extra_body` / custom headers documented for operators.
+The gateway always uses the Cursor SDK **local** runtime: `local: { cwd: process.cwd(), settingSources: [] }`. Operators choose the workspace by **where the process runs** (host repo root, `docker run -w`, volume mounts), not via environment variables.
 
 **Output**
 
@@ -139,16 +132,16 @@ The gateway **is** the compatibility layer; LiteLLM is optional upstream routing
 1. Deploy gateway (container/service) with network path from Archestra to gateway.
 2. Archestra custom provider: **OpenAI-compatible**, base URL = gateway, **API key = Cursor API key**.
 3. LLM proxy: select models from discovery endpoint.
-4. Agents use that proxy; Archestra’s own MCP/tools remain on the Archestra side unless you deliberately delegate repo work to Cursor cloud agents.
+4. Agents use that proxy; the gateway runs **local** Cursor agents on its process working directory.
 
-**Nested orchestration warning:** Archestra runs an agent loop; Cursor runs another. Architecture assumes Cursor backend is used for **Cursor-shaped work** (repo, coding agent), not as a silent drop-in for every small chat turn.
+**Nested orchestration warning:** Archestra runs an agent loop; Cursor runs another. Architecture assumes the gateway host/container is laid out so `process.cwd()` is the codebase you want Cursor to act on.
 
 ## Deployment
 
-| Environment | Runtime | Secrets |
-|-------------|---------|---------|
-| Archestra / K8s | Cloud agents | Cursor key in Archestra provider config; repo URLs in gateway env |
-| Developer laptop | Local `cwd` | Bearer = personal Cursor key |
+| Environment | Workspace | Secrets |
+|-------------|-----------|---------|
+| Docker | `docker run -w` + volume mount | Cursor key via Bearer / Archestra provider |
+| Dev host | Run `pnpm dev` from repo root | Bearer = personal Cursor key |
 
 Gateway should run with explicit disposal of SDK agents (`with` / `await using`) to avoid leaked local executors.
 
@@ -170,9 +163,8 @@ Gateway should run with explicit disposal of SDK agents (`with` / `await using`)
 2. `GET /v1/models`
 3. `POST /v1/chat/completions` non-stream (`Agent.prompt`)
 4. Streaming SSE
-5. Cloud runtime config for Archestra
-6. Session stickiness (optional)
-7. Usage / limits alignment with Archestra
+5. Session stickiness (optional)
+6. Usage / limits alignment with Archestra
 
 ## Deployment
 

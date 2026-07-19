@@ -1,26 +1,8 @@
-export type CursorRuntime = "cloud" | "local";
-
 export interface Env {
   host: string;
   port: number;
   cursorApiKeyFallback: string | undefined;
-  cursorRuntime: CursorRuntime;
-  cursorCloudRepos: string[];
-  cursorLocalCwd: string;
   modelsCacheTtlSeconds: number;
-}
-
-function parseRuntime(value: string | undefined): CursorRuntime {
-  if (value === "local") return "local";
-  return "cloud";
-}
-
-function parseCloudRepos(value: string | undefined): string[] {
-  if (!value?.trim()) return [];
-  return value
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
 }
 
 let cached: Env | undefined;
@@ -44,9 +26,6 @@ export function getEnv(): Env {
     host: process.env.HOST ?? "0.0.0.0",
     port,
     cursorApiKeyFallback: process.env.CURSOR_API_KEY?.trim() || undefined,
-    cursorRuntime: parseRuntime(process.env.CURSOR_RUNTIME),
-    cursorCloudRepos: parseCloudRepos(process.env.CURSOR_CLOUD_REPOS),
-    cursorLocalCwd: process.env.CURSOR_LOCAL_CWD?.trim() || ".",
     modelsCacheTtlSeconds,
   };
 
@@ -55,4 +34,9 @@ export function getEnv(): Env {
 
 export function resetEnvCache(): void {
   cached = undefined;
+}
+
+/** Working directory for Cursor local agents (not user-configurable). */
+export function getAgentWorkingDirectory(): string {
+  return process.cwd();
 }

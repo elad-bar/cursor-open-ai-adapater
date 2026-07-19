@@ -7,9 +7,6 @@ services:
     environment:
       HOST: "0.0.0.0"
       PORT: "8080"
-      CURSOR_RUNTIME: ${CURSOR_RUNTIME:-cloud}
-      CURSOR_CLOUD_REPOS: ${CURSOR_CLOUD_REPOS:-}
-      CURSOR_LOCAL_CWD: ${CURSOR_LOCAL_CWD:-.}
       MODELS_CACHE_TTL_SECONDS: ${MODELS_CACHE_TTL_SECONDS:-600}
     env_file:
       - path: .env

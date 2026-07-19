@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
-import { getEnv } from "./config/env.js";
+import { getAgentWorkingDirectory, getEnv } from "./config/env.js";
 
 const env = getEnv();
 const app = createApp();
@@ -18,7 +18,8 @@ serve(
         msg: "server_started",
         host: info.address,
         port: info.port,
-        runtime: env.cursorRuntime,
+        runtime: "local",
+        cwd: getAgentWorkingDirectory(),
       }),
     );
   },

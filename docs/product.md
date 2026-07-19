@@ -43,15 +43,15 @@ Invalid or missing keys → OpenAI-style `401` with a clear error (not a generic
 - OpenAI-compatible **`/v1/models`** and **`/v1/chat/completions`**.
 - Model list from **`Cursor.models.list()`** for the authenticated key.
 - Non-streaming and streaming assistant **text** in the response.
-- Configurable **cloud** agent defaults for platform deployment (repo URL, etc. via env or documented extensions).
 - Documented behavior for Archestra LLM proxy setup.
+- **Local-only** Cursor SDK runtime (`process.cwd()` workspace; not user-configurable).
 
 ## Non-goals (v1)
 
 - Full parity with every OpenAI parameter (`logprobs`, `seed`, parallel tool calls, strict JSON schema guarantees).
 - Mapping Archestra MCP tools into OpenAI `tools` on the wire (Archestra and Cursor each have their own tool loops).
 - Replacing Cursor Dashboard for run inspection (link/log `agent_id` / `run_id` for operators).
-- Local `cwd` agents as the default for shared Archestra deployments (cloud-first for org use).
+- Cloud agent runtime and repo URL configuration via env.
 
 ## Success criteria
 

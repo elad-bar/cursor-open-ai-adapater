@@ -5,31 +5,33 @@
 CI publishes to GitHub Container Registry on pushes to `main`, version tags (`v*`), and manual `workflow_dispatch`:
 
 ```text
-ghcr.io/<github-owner>/cursor-sdk-open-ai:latest
-ghcr.io/<github-owner>/cursor-sdk-open-ai:<git-sha>
-ghcr.io/<github-owner>/cursor-sdk-open-ai:<semver>   # on version tags
+ghcr.io/<github-owner>/cursor-open-ai-adapater:latest
 ```
 
 Pull (public package or with `read:packages` token):
 
 ```bash
-docker pull ghcr.io/<owner>/cursor-sdk-open-ai:latest
+docker pull ghcr.io/<owner>/cursor-open-ai-adapater:latest
 ```
 
-Run:
+Run (local Cursor agents use the container process working directory):
 
 ```bash
-docker run --rm -p 8080:8080 \
-  -e CURSOR_RUNTIME=cloud \
-  -e CURSOR_CLOUD_REPOS=https://github.com/org/repo \
-  ghcr.io/<owner>/cursor-sdk-open-ai:latest
+docker run --rm -p 8080:8080 ghcr.io/<owner>/cursor-open-ai-adapater:latest
+```
+
+To run agents against a repo checkout, set the container working directory and mount the tree (not configurable via env):
+
+```bash
+docker run --rm -p 8080:8080 -w /workspace -v /path/to/your/repo:/workspace \
+  ghcr.io/<owner>/cursor-open-ai-adapater:latest
 ```
 
 Clients authenticate with **`Authorization: Bearer <cursor_api_key>`** — the same value as the OpenAI API key in Archestra.
 
 ## Docker Compose
 
-Copy [`.env.example`](../.env.example) to `.env`, set `CURSOR_CLOUD_REPOS` (and optionally `CURSOR_API_KEY` for dev-only fallback).
+Copy [`.env.example`](../.env.example) to `.env` (optional `CURSOR_API_KEY` for dev-only fallback).
 
 ```bash
 docker compose up --build
@@ -46,21 +48,19 @@ Models: `curl http://localhost:8080/v1/models -H "Authorization: Bearer $CURSOR_
 | `HOST` | `0.0.0.0` | Bind address |
 | `PORT` | `8080` | Listen port |
 | `CURSOR_API_KEY` | — | Dev-only fallback if clients omit Bearer (not for multi-tenant) |
-| `CURSOR_RUNTIME` | `cloud` | `cloud` or `local` |
-| `CURSOR_CLOUD_REPOS` | — | Comma-separated git URLs; **required** when `CURSOR_RUNTIME=cloud` |
-| `CURSOR_LOCAL_CWD` | `.` | Working directory for local agents |
 | `MODELS_CACHE_TTL_SECONDS` | `600` | Cache TTL for `GET /v1/models` per API key |
+
+There is **no** cloud repo or `cwd` configuration. The Cursor SDK always runs **local** agents with `cwd` = the gateway process current working directory (`process.cwd()`).
 
 ### Production (Archestra / K8s)
 
-- Use **`CURSOR_RUNTIME=cloud`** and set **`CURSOR_CLOUD_REPOS`** on the gateway deployment.
+- Deploy the container with a **working directory and volume** (or image layout) that contains the codebase agents should use.
 - Store the **Cursor API key in Archestra** as the OpenAI-compatible provider API key; do not rely on `CURSOR_API_KEY` on the gateway in shared environments.
 - Increase upstream timeouts for chat completions — Cursor agent runs can take minutes.
 
 ### Local development
 
-- **`pnpm dev`** on the host with `CURSOR_RUNTIME=local` and a repo checkout as `CURSOR_LOCAL_CWD`.
-- Docker local agents need a **volume mount** for `cwd`; cloud runtime is simpler for containerized deploys.
+- Run **`pnpm dev`** from your repo root so `process.cwd()` is that checkout.
 
 ## Archestra LLM provider
 
@@ -71,7 +71,7 @@ Models: `curl http://localhost:8080/v1/models -H "Authorization: Bearer $CURSOR_
 3. Create an **LLM proxy**, select models discovered from `/v1/models`.
 4. Attach the proxy to agents.
 
-Each completion runs a **Cursor agent** (tools, repo context), not a lightweight chat token stream. Plan workloads and timeouts accordingly.
+Each completion runs a **local Cursor agent** against the gateway’s working directory. Plan workloads, filesystem layout, and timeouts accordingly.
 
 ## API surface
 

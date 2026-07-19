@@ -6,15 +6,7 @@ import {
   type SDKMessage,
   type TextBlock,
 } from "@cursor/sdk";
-import { getEnv } from "../config/env.js";
-
-export class CompletionConfigError extends Error {
-  readonly status = 400;
-  constructor(message: string) {
-    super(message);
-    this.name = "CompletionConfigError";
-  }
-}
+import { getAgentWorkingDirectory } from "../config/env.js";
 
 export class CompletionRunError extends Error {
   readonly status = 500;
@@ -28,32 +20,14 @@ export class CompletionRunError extends Error {
 }
 
 function buildAgentOptions(apiKey: string, modelId: string): AgentOptions {
-  const env = getEnv();
   const model = { id: modelId };
-
-  if (env.cursorRuntime === "local") {
-    return {
-      apiKey,
-      model,
-      local: {
-        cwd: env.cursorLocalCwd,
-        settingSources: [],
-      },
-    };
-  }
-
-  if (env.cursorCloudRepos.length === 0) {
-    throw new CompletionConfigError(
-      "Cloud runtime requires CURSOR_CLOUD_REPOS (comma-separated git URLs).",
-    );
-  }
 
   return {
     apiKey,
     model,
-    cloud: {
-      repos: env.cursorCloudRepos.map((url) => ({ url })),
-      skipReviewerRequest: true,
+    local: {
+      cwd: getAgentWorkingDirectory(),
+      settingSources: [],
     },
   };
 }
@@ -111,7 +85,7 @@ export async function runCompletion(params: {
     const result = await Agent.prompt(params.prompt, options);
     return handleRunResult(result, params.model, params.requestId);
   } catch (err) {
-    if (err instanceof CompletionConfigError || err instanceof CompletionRunError) {
+    if (err instanceof CompletionRunError) {
       throw err;
     }
     if (err instanceof CursorAgentError) {

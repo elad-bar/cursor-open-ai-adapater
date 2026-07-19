@@ -4,7 +4,6 @@ import { Hono } from "hono";
 import { stream } from "hono/streaming";
 import { requireCursorApiKey } from "../auth/cursor-api-key.js";
 import {
-  CompletionConfigError,
   CompletionRunError,
   cursorAgentErrorStatus,
   runCompletion,
@@ -78,9 +77,7 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
         await sseStream.write(SSE_DONE);
       } catch (err) {
         const message =
-          err instanceof CompletionConfigError ||
-          err instanceof CompletionRunError ||
-          err instanceof CursorAgentError
+          err instanceof CompletionRunError || err instanceof CursorAgentError
             ? err.message
             : "Internal server error";
         await sseStream.write(formatSseData(JSON.stringify(openaiError(message, "api_error"))));
@@ -105,9 +102,6 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
       }),
     );
   } catch (err) {
-    if (err instanceof CompletionConfigError) {
-      return c.json(openaiError(err.message, "invalid_request_error"), err.status);
-    }
     if (err instanceof CompletionRunError) {
       return c.json(openaiError(err.message, "api_error", "agent_run_error"), err.status);
     }

@@ -18,7 +18,7 @@ Your **Cursor API key is the credential**: configure it wherever the client expe
 
 ```bash
 cp .env.example .env
-# Edit .env — set CURSOR_RUNTIME, CURSOR_CLOUD_REPOS or local cwd as needed
+# Optional: CURSOR_API_KEY for dev when omitting Bearer header
 
 pnpm install
 pnpm dev
@@ -53,7 +53,7 @@ See [docs/deployment.md](docs/deployment.md) for GHCR images, env vars, and Arch
 
 ## Important expectations
 
-This is **not** a drop-in replacement for OpenAI chat completions. Each “completion” triggers a **Cursor agent run** (tools, repo context, longer latency). Model IDs (e.g. `composer-2.5`) come from Cursor, not OpenAI.
+Each “completion” triggers a **local Cursor agent run** against the gateway process working directory (`process.cwd()`). Run the server from your repo root, or set Docker `-w` and volume mounts accordingly.
 
 ## Documentation
 
