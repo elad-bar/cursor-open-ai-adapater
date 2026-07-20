@@ -6,10 +6,9 @@ import { requireCursorApiKey } from "../auth/cursor-api-key.js";
 import { resolveMcpGatewayToken } from "../auth/mcp-gateway-token.js";
 import {
   CompletionRunError,
+  type CursorCompletionService,
   STREAM_IDLE_HEARTBEAT_CHAR,
   cursorAgentErrorStatus,
-  runCompletion,
-  streamCompletion,
 } from "../cursor/completion.js";
 import { buildMcpGatewayServers } from "../mcp/gateway-config.js";
 import { buildChatCompletion, mapTokenUsage } from "../openai/completions-mapper.js";
@@ -27,13 +26,14 @@ import {
 import { buildChunk, buildUsageChunk, formatSseData, SSE_DONE } from "../openai/stream-sse.js";
 import type { ChatCompletionRequest } from "../types/openai.js";
 
-export const chatCompletionsRoutes = new Hono();
-
 function isHeartbeatChunk(text: string): boolean {
   return text === STREAM_IDLE_HEARTBEAT_CHAR;
 }
 
-chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
+export function createChatCompletionsRoutes(completion: CursorCompletionService): Hono {
+  const chatCompletionsRoutes = new Hono();
+
+  chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
   const apiKey = requireCursorApiKey(c);
   if (apiKey instanceof Response) return apiKey;
 
@@ -77,7 +77,7 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
       c.header("Connection", "keep-alive");
 
       try {
-        const gen = streamCompletion({ apiKey, model, input: agentInput, requestId, mcpServers });
+        const gen = completion.streamCompletion({ apiKey, model, input: agentInput, requestId, mcpServers });
         let runResult: RunResult | undefined;
         let firstChunk = true;
         let streamedBuffer = "";
@@ -151,7 +151,7 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
   }
 
   try {
-    const { content: rawContent, id, usage } = await runCompletion({
+    const { content: rawContent, id, usage } = await completion.runCompletion({
       apiKey,
       model,
       input: agentInput,
@@ -182,4 +182,7 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
     }
     throw err;
   }
-});
+  });
+
+  return chatCompletionsRoutes;
+}

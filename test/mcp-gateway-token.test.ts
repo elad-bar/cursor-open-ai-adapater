@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import {
   MCP_GATEWAY_TOKEN_HEADER,
   resolveMcpGatewayToken,
-} from "../src/auth/mcp-gateway-token.js";
+} from "../src/api/auth/mcp-gateway-token.js";
 
 describe("resolveMcpGatewayToken", () => {
   it("reads X-Mcp-Gateway-Token header", async () => {

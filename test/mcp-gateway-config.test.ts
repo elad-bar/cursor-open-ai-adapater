@@ -4,8 +4,8 @@ import {
   buildMcpGatewayServers,
   getMcpGatewayUrl,
   MCP_GATEWAY_SERVER_NAME,
-} from "../src/mcp/gateway-config.js";
-import { getEnv, resetEnvCache } from "../src/config/env.js";
+} from "../src/api/mcp/gateway-config.js";
+import { getEnv, resetEnvCache } from "../src/api/config/env.js";
 
 describe("buildMcpGatewayServers", () => {
   it("returns undefined when MCP_GATEWAY_URL is unset", () => {

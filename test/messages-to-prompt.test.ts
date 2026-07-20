@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { messagesToPrompt } from "../src/openai/messages-to-prompt.js";
+import { messagesToPrompt } from "../src/api/openai/messages-to-prompt.js";
 
 describe("messagesToPrompt", () => {
   it("formats roles into labeled sections", () => {

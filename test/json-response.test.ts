@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   JsonNormalizeError,
   normalizeJsonAssistantContent,
-} from "../src/openai/json-response.js";
+} from "../src/api/openai/json-response.js";
 
 describe("normalizeJsonAssistantContent", () => {
   it("returns compact JSON for a pure object string", () => {

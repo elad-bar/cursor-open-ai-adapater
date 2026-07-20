@@ -29,6 +29,24 @@ curl http://localhost:8080/health
 curl http://localhost:8080/v1/models -H "Authorization: Bearer $CURSOR_API_KEY"
 ```
 
+### Dev client
+
+In a **second terminal**, exercise the bridge with the built-in CLI ([`src/client`](src/client)) against the HTTP server ([`src/api`](src/api)) via the OpenAI SDK (dev dependency only):
+
+```bash
+# Bridge terminal: pnpm dev (from the repo you want the agent to use)
+
+# Client terminal — set CURSOR_API_KEY unless the bridge .env defines it
+pnpm dev:client --help
+pnpm dev:client --model composer-2.5 -- "What does this project do?"
+pnpm dev:client --model composer-2.5 --json -- 'Return {"summary":"..."} from README'
+pnpm dev:client --model composer-2.5 --stream -- "List top-level files"
+```
+
+Optional: set **`CURSOR_API_KEY`** in the client shell unless the bridge `.env` defines it.
+
+Flags: `--file`, `--schema`, `--verbose`. **`--model` is required.** The client calls **`http://127.0.0.1:8080/v1`** (change [`src/client/config.ts`](src/client/config.ts) if your bridge uses another port).
+
 Build and run compiled output:
 
 ```bash

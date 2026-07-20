@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resetEnvCache, getEnv } from "../src/config/env.js";
+import { resetEnvCache, getEnv } from "../src/api/config/env.js";
 import {
   STREAM_IDLE_HEARTBEAT_CHAR,
   withIdleHeartbeats,
-} from "../src/cursor/stream-idle-heartbeat.js";
+} from "../src/api/cursor/stream-idle-heartbeat.js";
 
 async function collect(gen: AsyncGenerator<string, void>): Promise<string[]> {
   const out: string[] = [];

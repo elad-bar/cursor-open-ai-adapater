@@ -4,7 +4,7 @@ import {
   agentInputHasUsableContent,
   applyJsonInstructionsToAgentInput,
   messagesToAgentInput,
-} from "../src/openai/messages-to-agent-input.js";
+} from "../src/api/openai/messages-to-agent-input.js";
 
 describe("messagesToAgentInput", () => {
   it("returns string input for text-only messages", () => {

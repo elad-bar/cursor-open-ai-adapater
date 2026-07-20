@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Hono } from "hono";
-import { resetEnvCache } from "../src/config/env.js";
-import { requireCursorApiKey } from "../src/auth/cursor-api-key.js";
+import { resetEnvCache } from "../src/api/config/env.js";
+import { requireCursorApiKey } from "../src/api/auth/cursor-api-key.js";
 
 describe("requireCursorApiKey", () => {
   it("accepts Bearer token", async () => {

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { TokenUsage } from "@cursor/sdk";
-import { mapTokenUsage } from "../src/openai/completions-mapper.js";
-import { buildUsageChunk } from "../src/openai/stream-sse.js";
+import { mapTokenUsage } from "../src/api/openai/completions-mapper.js";
+import { buildUsageChunk } from "../src/api/openai/stream-sse.js";
 
 describe("mapTokenUsage", () => {
   it("maps SDK TokenUsage to OpenAI usage fields", () => {
