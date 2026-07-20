@@ -20,7 +20,7 @@ Run (local Cursor agents use the container process working directory):
 docker run --rm -p 8080:8080 ghcr.io/<owner>/cursor-open-ai-adapater:latest
 ```
 
-To run agents against a repo checkout, set the container working directory and mount the tree (not configurable via env):
+To run agents against a repo checkout, set the container working directory and mount the tree (not configurable via env). The gateway binary lives under `/app`; `working_dir` only sets the Cursor agent `cwd`.
 
 ```bash
 docker run --rm -p 8080:8080 -w /workspace -v /path/to/your/repo:/workspace \
