@@ -2,14 +2,14 @@ services:
   gateway:
     image: ghcr.io/elad-bar/cursor-open-ai-adapater:latest
     ports:
-      - "${PORT:-8080}:8080"
+      - "${PORT:-8080}:${PORT:-8080}"
     # Mount the repo Cursor agents should use:
     # working_dir: /workspace
     # volumes:
     #   - /path/to/your/repo:/workspace
     environment:
       HOST: "0.0.0.0"
-      PORT: "8080"
+      PORT: ${PORT:-8080}
       MODELS_CACHE_TTL_SECONDS: ${MODELS_CACHE_TTL_SECONDS:-600}
       MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-}
       STREAM_IDLE_HEARTBEAT_SECONDS: ${STREAM_IDLE_HEARTBEAT_SECONDS:-30}
@@ -19,7 +19,7 @@ services:
       - path: .env
         required: false
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:$${PORT:-8080}/health"]
       interval: 30s
       timeout: 5s
       retries: 3
