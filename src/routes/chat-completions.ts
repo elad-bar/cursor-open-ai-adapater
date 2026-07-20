@@ -126,6 +126,16 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
           err instanceof CompletionRunError || err instanceof CursorAgentError
             ? err.message
             : "Internal server error";
+        if (!(err instanceof CompletionRunError) && !(err instanceof CursorAgentError)) {
+          console.error(
+            JSON.stringify({
+              level: "error",
+              msg: "stream_completion_failed",
+              request_id: requestId,
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        }
         await sseStream.write(formatSseData(JSON.stringify(openaiError(message, "api_error"))));
         await sseStream.write(SSE_DONE);
       }

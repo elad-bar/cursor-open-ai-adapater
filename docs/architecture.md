@@ -126,7 +126,9 @@ OpenAI clients often resend full `messages` on every hop. When a stable **extern
 
 **In-memory store** (per process): `agent_id` keyed by hash(Cursor API key) + external session id + model. TTL and max entries via `AGENT_SESSION_TTL_SECONDS` and `AGENT_SESSION_MAX_ENTRIES`. Concurrent requests for the same session are serialized.
 
-If resume fails (agent missing on disk), the gateway creates a new agent and re-seeds the session.
+If resume fails (agent not found on disk), the gateway creates a new agent and re-seeds the session.
+
+**Upstream tool loops:** when the client sends multiple completions per user message (messages ending with `assistant` or `tool`), the gateway **does not resume**; it creates a fresh agent with the full prompt for that hop. Resume applies only when the **last** message is `user` (a new user turn).
 
 **Stateless:** omit both session id sources → full prompt every request, no map entry.
 

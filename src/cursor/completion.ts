@@ -23,6 +23,7 @@ import {
   setAgentSession,
   withExternalSessionLock,
 } from "../session/agent-session-store.js";
+import { shouldResumeAgentSession } from "../session/should-resume-agent-session.js";
 import {
   STREAM_IDLE_HEARTBEAT_CHAR,
   withIdleHeartbeats,
@@ -174,11 +175,12 @@ interface OpenedAgent {
 }
 
 async function openAgentForCompletion(params: CompletionParams): Promise<OpenedAgent> {
-  const { apiKey, model, externalSessionId, mcpServers, requestId } = params;
+  const { apiKey, model, externalSessionId, mcpServers, requestId, messages } = params;
   const options = buildAgentOptions(apiKey, model, mcpServers);
+  const canResume = shouldResumeAgentSession(messages, externalSessionId);
 
   const existing =
-    externalSessionId !== undefined
+    canResume && externalSessionId !== undefined
       ? getAgentSession(apiKey, externalSessionId, model)
       : undefined;
 
@@ -219,6 +221,7 @@ async function openAgentForCompletion(params: CompletionParams): Promise<OpenedA
     model,
     external_session_id: externalSessionId,
     session_resumed: false,
+    session_resume_skipped: externalSessionId !== undefined && !canResume,
     mcp_attached: Boolean(mcpServers),
     phase: "create_start",
   });
