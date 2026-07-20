@@ -2,13 +2,13 @@
 
 ## Vision
 
-Make Cursor agent models usable anywhere that expects an **OpenAI-compatible LLM provider**—starting with **Archestra LLM proxies**—without bespoke Cursor SDK integration in every platform.
+Make Cursor agent models usable anywhere that expects an **OpenAI-compatible LLM provider** without bespoke Cursor SDK integration in every platform.
 
 ## Problem
 
-- Platforms like Archestra discover models and invoke LLMs via **OpenAI-style** APIs (`/v1/models`, `/v1/chat/completions`).
+- Platforms discover models and invoke LLMs via **OpenAI-style** APIs (`/v1/models`, `/v1/chat/completions`).
 - The Cursor SDK is an **agent runtime** (runs, streaming, local/cloud, MCP), not an OpenAI endpoint.
-- Teams want to **pick Cursor models in the UI** and route governed agent traffic through Archestra while execution stays on Cursor.
+- Teams want to **pick Cursor models in the UI** and route agent traffic through an OpenAI-compatible proxy while execution stays on Cursor.
 
 ## Solution
 
@@ -23,7 +23,7 @@ A small **compatibility gateway** that:
 
 | As a… | I want to… | So that… |
 |--------|------------|----------|
-| Platform admin | Register one OpenAI-compatible base URL in Archestra | Agents can use Cursor without custom Archestra plugins |
+| Platform admin | Register one OpenAI-compatible base URL | Agents can use Cursor without custom plugins |
 | Admin | Paste my **Cursor API key** into the provider “OpenAI API key” field | I don’t manage a second credential type |
 | Builder | See models from `/v1/models` | I only select models my Cursor account supports |
 | Developer | Call the gateway from LiteLLM or curl | Existing tooling keeps working |
@@ -34,7 +34,7 @@ A small **compatibility gateway** that:
 
 - Clients send `Authorization: Bearer <cursor_api_key>` (OpenAI convention).
 - Alternatively, provider UIs that store an “API key” field pass that value on each request; the gateway forwards it to the SDK as `api_key` / `CURSOR_API_KEY` for that request.
-- Optional server default: `CURSOR_API_KEY` env var when the client omits a key (discouraged for multi-tenant Archestra; prefer per-proxy keys in Archestra).
+- Optional server default: `CURSOR_API_KEY` env var when the client omits a key (discouraged for multi-tenant deployments; prefer per-client keys).
 
 Invalid or missing keys → OpenAI-style `401` with a clear error (not a generic agent failure).
 
@@ -43,7 +43,7 @@ Invalid or missing keys → OpenAI-style `401` with a clear error (not a generic
 - OpenAI-compatible **`/v1/models`** and **`/v1/chat/completions`**.
 - Model list from **`Cursor.models.list()`** for the authenticated key.
 - Non-streaming and streaming assistant **text** in the response.
-- Documented behavior for Archestra LLM proxy setup.
+- **Session stickiness** when clients send OpenAI `user` or optional session header (see [architecture.md](architecture.md)).
 - **Local-only** Cursor SDK runtime (`process.cwd()` workspace; not user-configurable).
 - **MCP gateway injection:** when `MCP_GATEWAY_URL` is set, attach streamable HTTP MCP to Cursor runs when clients send **`X-Mcp-Gateway-Token`** (per-user Bearer to the remote gateway). See [mcp-gateway.md](mcp-gateway.md).
 
@@ -57,7 +57,7 @@ Invalid or missing keys → OpenAI-style `401` with a clear error (not a generic
 
 ## Success criteria
 
-- Archestra can register the gateway, **list models**, and complete a chat turn using a selected Cursor model id.
+- Clients can register the gateway, **list models**, and complete a chat turn using a selected Cursor model id.
 - Operators configure **one key type**: Cursor key in the OpenAI key field.
 - Documentation states clearly that backends are **agent runs**, not instant chat tokens.
 
@@ -66,12 +66,13 @@ Invalid or missing keys → OpenAI-style `401` with a clear error (not a generic
 | Risk | Mitigation |
 |------|------------|
 | Long runtimes vs chat timeouts | Document timeouts; consider async/job pattern in a later version |
-| Nested agents (Archestra + Cursor) | Product doc: use Cursor backend for repo/coding; keep Archestra for governance/MCP |
-| Token usage in Archestra | Non-stream and streaming (`stream_options.include_usage`) return best-effort `usage` when the Cursor SDK reports counts; otherwise omit |
+| Nested agents (upstream + Cursor) | Use one tool orchestrator; session stickiness via OpenAI `user`; see response headers for double-MCP hint |
+| Token usage in upstream billing | `stream_options.include_usage` and trailing usage chunks when SDK reports counts |
 | Model list drift | Cache with TTL; refresh on proxy configuration |
+| Process memory over long container life | Session TTL, agent dispose per request; SDK uses default on-disk state for `cwd` |
 
 ## Glossary
 
 - **Gateway** — This OpenAI-compatible service.
 - **Cursor API key** — Key from Cursor Dashboard / team service account; used as the OpenAI API key toward the gateway.
-- **LLM proxy (Archestra)** — Org routing object that points at a provider and model set.
+- **External session id** — OpenAI `user` field or optional HTTP header (`AGENT_SESSION_HEADER`) used to resume Cursor agents.

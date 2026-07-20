@@ -18,6 +18,10 @@ const roleLabel: Record<string, string> = {
 };
 
 export function messagesToPrompt(messages: ChatMessage[]): string {
+  return messagesToInitialPrompt(messages);
+}
+
+export function messagesToInitialPrompt(messages: ChatMessage[]): string {
   const sections: string[] = [];
 
   for (const msg of messages) {
@@ -32,4 +36,15 @@ export function messagesToPrompt(messages: ChatMessage[]): string {
   }
 
   return sections.join("\n\n---\n\n");
+}
+
+/** Last user message text for incremental turns on resumed agents. */
+export function extractLatestUserTurn(messages: ChatMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]!;
+    if (msg.role !== "user") continue;
+    const text = messageText(msg.content).trim();
+    if (text) return text;
+  }
+  return "";
 }

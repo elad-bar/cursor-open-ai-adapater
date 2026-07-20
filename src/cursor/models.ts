@@ -17,10 +17,19 @@ export function invalidateModelsCache(apiKey: string): void {
   cache.delete(cacheKey(apiKey));
 }
 
+function purgeExpiredCacheEntries(now: number): void {
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt <= now) {
+      cache.delete(key);
+    }
+  }
+}
+
 export async function listModels(apiKey: string): Promise<SDKModel[]> {
   const env = getEnv();
   const key = cacheKey(apiKey);
   const now = Date.now();
+  purgeExpiredCacheEntries(now);
   const hit = cache.get(key);
   if (hit && hit.expiresAt > now) {
     return hit.models;

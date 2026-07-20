@@ -28,3 +28,15 @@ describe("messagesToPrompt", () => {
     assert.match(prompt, /line1\nline2/);
   });
 });
+
+describe("extractLatestUserTurn", () => {
+  it("returns the last user message only", async () => {
+    const { extractLatestUserTurn } = await import("../src/openai/messages-to-prompt.js");
+    const turn = extractLatestUserTurn([
+      { role: "user", content: "first" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "second" },
+    ]);
+    assert.equal(turn, "second");
+  });
+});

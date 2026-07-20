@@ -3,11 +3,18 @@ services:
     image: ghcr.io/elad-bar/cursor-open-ai-adapater:latest
     ports:
       - "${PORT:-8080}:8080"
+    # Mount the repo Cursor agents should use:
+    # working_dir: /workspace
+    # volumes:
+    #   - /path/to/your/repo:/workspace
     environment:
       HOST: "0.0.0.0"
       PORT: "8080"
       MODELS_CACHE_TTL_SECONDS: ${MODELS_CACHE_TTL_SECONDS:-600}
       MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-}
+      STREAM_IDLE_HEARTBEAT_SECONDS: ${STREAM_IDLE_HEARTBEAT_SECONDS:-30}
+      AGENT_SESSION_TTL_SECONDS: ${AGENT_SESSION_TTL_SECONDS:-3600}
+      AGENT_SESSION_MAX_ENTRIES: ${AGENT_SESSION_MAX_ENTRIES:-500}
     env_file:
       - path: .env
         required: false

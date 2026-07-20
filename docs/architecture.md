@@ -5,7 +5,7 @@
 ```mermaid
 flowchart LR
   subgraph clients [Clients]
-    Archestra[Archestra LLM proxy]
+    Proxy[OpenAI-compatible proxy]
     LiteLLM[LiteLLM / OpenAI SDK]
   end
   subgraph gateway [cursor-sdk-open-ai]
@@ -21,7 +21,7 @@ flowchart LR
   subgraph remoteMcp [Remote MCP gateway]
     MCP[MCP_GATEWAY_URL streamable HTTP]
   end
-  Archestra --> API
+  Proxy --> API
   LiteLLM --> API
   API --> Auth
   Auth --> Map
@@ -29,10 +29,10 @@ flowchart LR
   McpInject --> SDK
   Map --> SDK
   SDK --> Local
-  Local -->|Bearer arch token| MCP
+  Local -->|Bearer user token| MCP
 ```
 
-Archestra (and LiteLLM) treat the gateway as an **OpenAI provider**: base URL + API key. The API key **is** the Cursor API key end-to-end. When **`MCP_GATEWAY_URL`** is configured and the client sends **`X-Mcp-Gateway-Token`**, the gateway attaches an HTTP MCP server to the Cursor agent; Cursor calls the remote gateway with **Bearer** user token (not the Cursor key). This is **not** a proxy-native LLM tool loop—Cursor executes tools directly against MCP.
+OpenAI-compatible clients treat the gateway as a provider: base URL + API key. The API key **is** the Cursor API key end-to-end. When **`MCP_GATEWAY_URL`** is configured and the client sends **`X-Mcp-Gateway-Token`**, the gateway attaches an HTTP MCP server to the Cursor agent; Cursor calls the remote gateway with **Bearer** user token (not the Cursor key). Cursor executes tools directly against MCP—not via OpenAI `tools` on this API.
 
 ## Components
 
@@ -49,7 +49,7 @@ Health/readiness endpoints (e.g. `/health`) optional for K8s.
 
 ### 2. Authentication
 
-**Primary path (Archestra / OpenAI clients)**
+**Primary path (OpenAI clients)**
 
 ```
 Authorization: Bearer cursor_...
@@ -65,11 +65,10 @@ Authorization: Bearer cursor_...
 
 - If no bearer token and `CURSOR_API_KEY` is set in the gateway environment, use env key (document as dev-only).
 
-**Archestra setup**
+**Provider setup**
 
 - Provider “OpenAI API key” = user’s or service account **Cursor API key**.
 - Optional: provider extra header **`X-Mcp-Gateway-Token`** = user’s MCP gateway token (Bearer when `MCP_GATEWAY_URL` is set on the gateway).
-- No separate gateway-issued API key required unless you add an optional second layer later.
 
 ### 3. Request mapper (chat completions)
 
@@ -77,8 +76,9 @@ Authorization: Bearer cursor_...
 
 **Prompt construction**
 
-- Merge `messages` into a single agent prompt (system + user/assistant history), or maintain session state (see below).
-- **v1 default:** stateless — one shot per request via `Agent.prompt(...)` or ephemeral `Agent.create` + `send` + dispose.
+- **Stateless** (no session id): merge full `messages` into one agent prompt each request.
+- **Session stickiness** (when OpenAI `user` or optional `AGENT_SESSION_HEADER` is present): map external session id → Cursor `agent_id`, **`Agent.resume`**, send only the latest user turn; first turn uses full initial prompt.
+- Each request uses `Agent.create` / `Agent.resume` + `send` + explicit dispose (no long-lived HTTP connection to the agent handle).
 
 **Model**
 
@@ -100,8 +100,9 @@ See [mcp-gateway.md](mcp-gateway.md).
 **Output**
 
 - Non-stream: OpenAI `chat.completion` with `choices[0].message.content` and optional top-level `usage` when the SDK reports token counts.
-- Stream: SSE chunks with `delta.content` from SDK run stream (assistant text blocks in v1). When `STREAM_IDLE_HEARTBEAT_SECONDS` > 0, also emit minimal invisible keepalive content during SDK silence so OpenAI clients (e.g. Archestra) detect response progress during long tool runs.
-- Stream usage: when the client sets `stream_options.include_usage: true`, emit a trailing `chat.completion.chunk` with empty `choices` and `usage` (same fields as non-stream) after the `finish_reason: stop` chunk, if the SDK reported usage.
+- Stream: SSE chunks with `delta.content` from SDK run stream (assistant text blocks in v1). When `STREAM_IDLE_HEARTBEAT_SECONDS` > 0, emit minimal invisible keepalive content during SDK silence so upstream clients detect progress during long tool runs.
+- Stream usage: when the client sets `stream_options.include_usage: true`, or when the SDK reports usage, emit a trailing usage chunk after `finish_reason: stop`.
+- Response headers: `X-Cursor-Gateway-Mcp-Attached`, and `X-Cursor-Gateway-Likely-Double-Orchestration` when MCP is attached and the request already contains `tool` role messages (upstream tool loop + Cursor MCP).
 - Omit `usage` when the SDK does not report counts (non-stream and stream).
 
 **Errors**
@@ -112,18 +113,22 @@ See [mcp-gateway.md](mcp-gateway.md).
 | `CursorAgentError` (run never started) | 502/503 | Retry hint from `isRetryable` |
 | Run finished `status === "error"` | 500 | Run executed but failed |
 
-Log `agent_id` and `run_id` on each completion for support.
+Log `agent_id`, `run_id`, `external_session_id`, and `session_resumed` on each completion for support.
 
-### 4. Session mapping (optional, post-v1)
+### 4. Session mapping
 
-OpenAI clients resend full `messages`; Cursor can reuse **`Agent.create` + `send`** or **`Agent.resume`**.
+OpenAI clients often resend full `messages` on every hop. When a stable **external session id** is provided, the gateway reuses Cursor agents via **`Agent.resume`**.
 
-Optional enhancement:
+**Session id sources** (first non-empty):
 
-- Key sessions by OpenAI `user` + Archestra conversation id (header) → store `agent_id`.
-- Reduces re-sending huge histories; increases gateway statefulness.
+1. Request header named by **`AGENT_SESSION_HEADER`** (optional env; unset = skip).
+2. OpenAI **`user`** field on the chat completion body.
 
-Not required for Archestra MVP if messages are full context each turn.
+**In-memory store** (per process): `agent_id` keyed by hash(Cursor API key) + external session id + model. TTL and max entries via `AGENT_SESSION_TTL_SECONDS` and `AGENT_SESSION_MAX_ENTRIES`. Concurrent requests for the same session are serialized.
+
+If resume fails (agent missing on disk), the gateway creates a new agent and re-seeds the session.
+
+**Stateless:** omit both session id sources → full prompt every request, no map entry.
 
 ### 5. Model discovery
 
@@ -145,49 +150,42 @@ LiteLLM can point at this gateway with:
 
 The gateway **is** the compatibility layer; LiteLLM is optional upstream routing, not a hard dependency inside the binary.
 
-## Archestra integration
+## Upstream OpenAI-compatible integration
 
-1. Deploy gateway (container/service) with network path from Archestra to gateway.
-2. Archestra custom provider: **OpenAI-compatible**, base URL = gateway, **API key = Cursor API key**.
-3. Optional MCP: **`MCP_GATEWAY_URL`** on gateway + **`X-Mcp-Gateway-Token`** on provider per user ([mcp-gateway.md](mcp-gateway.md)).
-4. LLM proxy: select models from discovery endpoint.
-5. Agents use that proxy; the gateway runs **local** Cursor agents on its process working directory.
+1. Deploy the gateway where clients can reach it.
+2. Custom provider: **OpenAI-compatible**, base URL = gateway, **API key = Cursor API key**.
+3. Optional MCP: **`MCP_GATEWAY_URL`** on gateway + **`X-Mcp-Gateway-Token`** per user ([mcp-gateway.md](mcp-gateway.md)).
+4. Select models from `/v1/models`.
 
-**Nested orchestration warning:** Archestra runs an agent loop; Cursor runs another. Architecture assumes the gateway host/container is laid out so `process.cwd()` is the codebase you want Cursor to act on.
+**Nested orchestration:** some upstream clients run their own tool loop before each completion call; Cursor may run another when MCP is injected. Prefer one orchestrator per agent. Session stickiness (OpenAI `user` or optional session header) reduces repeated full-history prompts.
 
 ## Deployment
 
 | Environment | Workspace | Secrets |
 |-------------|-----------|---------|
-| Docker | `docker run -w` + volume mount | Cursor key via Bearer / Archestra provider |
+| Docker | `docker run -w` + volume mount | Cursor key via Bearer |
 | Dev host | Run `pnpm dev` from repo root | Bearer = personal Cursor key |
 
-Gateway should run with explicit disposal of SDK agents (`with` / `await using`) to avoid leaked local executors.
+The gateway disposes SDK agents per request (`await using`) to avoid leaked local executors.
 
 ## Security
 
 - Treat bearer tokens as secrets (logs redacted).
 - Do not log full message bodies in production unless configured.
 - Cloud MCP/stdio env may contain secrets—follow Cursor SDK guidance.
-- Prefer team **service account** keys for org-wide Archestra proxies.
+- Prefer team **service account** keys for org-wide provider configuration.
 
 ## Observability
 
-- Structured logs: `request_id`, `model`, `run_id`, `agent_id`, `mcp_attached`, duration, `status`.
-- Metrics: request count, latency histogram, error rate by class (401 vs SDK vs run error).
+- Structured logs: `request_id`, `model`, `run_id`, `agent_id`, `external_session_id`, `session_resumed`, `mcp_attached`, `likely_double_orchestration`, `status`.
 
-## Implementation roadmap (suggested)
+## Implementation status
 
-1. Auth middleware (Bearer → Cursor key)
-2. `GET /v1/models`
-3. `POST /v1/chat/completions` non-stream (`Agent.prompt`)
-4. Streaming SSE
-5. Session stickiness (optional)
-6. Usage / limits alignment with Archestra
+Core OpenAI surface, streaming, session stickiness, MCP injection, and usage mapping are implemented. Future work may include async/job completions and richer metrics export.
 
-## Deployment
+## Container images
 
-Container images are built and pushed to **GitHub Container Registry** by [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (`ghcr.io/<owner>/cursor-sdk-open-ai`). Runtime configuration, Docker Compose, and Archestra provider steps are documented in [deployment.md](deployment.md).
+Container images are built and pushed to **GitHub Container Registry** by [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). Runtime configuration and Docker Compose are documented in [deployment.md](deployment.md).
 
 ## References
 

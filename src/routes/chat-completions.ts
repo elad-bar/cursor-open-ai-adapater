@@ -1,20 +1,22 @@
 import { randomUUID } from "node:crypto";
-import { CursorAgentError, type RunResult } from "@cursor/sdk";
+import { CursorAgentError } from "@cursor/sdk";
 import { Hono } from "hono";
 import { stream } from "hono/streaming";
 import { requireCursorApiKey } from "../auth/cursor-api-key.js";
 import { resolveMcpGatewayToken } from "../auth/mcp-gateway-token.js";
-import { buildMcpGatewayServers } from "../mcp/gateway-config.js";
 import {
+  applyCompletionDiagnosticHeaders,
   CompletionRunError,
   cursorAgentErrorStatus,
   runCompletion,
   streamCompletion,
 } from "../cursor/completion.js";
+import { buildMcpGatewayServers } from "../mcp/gateway-config.js";
 import { buildChatCompletion, mapTokenUsage } from "../openai/completions-mapper.js";
 import { openaiError } from "../openai/errors.js";
-import { messagesToPrompt } from "../openai/messages-to-prompt.js";
+import { messagesToInitialPrompt } from "../openai/messages-to-prompt.js";
 import { buildChunk, buildUsageChunk, formatSseData, SSE_DONE } from "../openai/stream-sse.js";
+import { resolveExternalSessionId } from "../session/resolve-external-session-id.js";
 import type { ChatCompletionRequest } from "../types/openai.js";
 
 export const chatCompletionsRoutes = new Hono();
@@ -41,16 +43,28 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
     );
   }
 
-  const prompt = messagesToPrompt(body.messages);
-  if (!prompt.trim()) {
+  const initialPrompt = messagesToInitialPrompt(body.messages);
+  if (!initialPrompt.trim()) {
     return c.json(openaiError("messages contain no usable content", "invalid_request_error"), 400);
   }
 
   const requestId = c.get("requestId");
   const model = body.model.trim();
+  const externalSessionId = resolveExternalSessionId(c, body.user);
+  const signal = c.req.raw.signal;
 
   const mcpGatewayToken = resolveMcpGatewayToken(c);
   const mcpServers = mcpGatewayToken ? buildMcpGatewayServers(mcpGatewayToken) : undefined;
+
+  const completionParams = {
+    apiKey,
+    model,
+    messages: body.messages,
+    requestId,
+    mcpServers,
+    externalSessionId,
+    signal,
+  };
 
   if (body.stream) {
     const streamId = `chatcmpl-${randomUUID()}`;
@@ -60,18 +74,17 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
       c.header("Connection", "keep-alive");
 
       try {
-        const gen = streamCompletion({ apiKey, model, prompt, requestId, mcpServers });
+        const gen = streamCompletion(completionParams);
         let first = true;
-
-        let runResult: RunResult | undefined;
+        let doneValue: Awaited<ReturnType<typeof gen.next>> | undefined;
 
         while (true) {
-          const { value, done } = await gen.next();
-          if (done) {
-            runResult = value;
+          const step = await gen.next();
+          if (step.done) {
+            doneValue = step;
             break;
           }
-          const text = value;
+          const text = step.value;
           await sseStream.write(
             formatSseData(
               buildChunk({
@@ -84,11 +97,21 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
           first = false;
         }
 
+        const streamDone = doneValue?.value;
+        if (streamDone) {
+          applyCompletionDiagnosticHeaders((name, value) => {
+            c.header(name, value);
+          }, streamDone.meta);
+        }
+
         await sseStream.write(
           formatSseData(buildChunk({ id: streamId, model, finishReason: "stop" })),
         );
 
-        if (body.stream_options?.include_usage === true) {
+        const runResult = streamDone?.runResult;
+        const includeUsage =
+          body.stream_options?.include_usage === true || runResult?.usage !== undefined;
+        if (includeUsage) {
           const openAiUsage = mapTokenUsage(runResult?.usage);
           if (openAiUsage) {
             await sseStream.write(
@@ -110,13 +133,10 @@ chatCompletionsRoutes.post("/v1/chat/completions", async (c) => {
   }
 
   try {
-    const { content, id, usage } = await runCompletion({
-      apiKey,
-      model,
-      prompt,
-      requestId,
-      mcpServers,
-    });
+    const { content, id, usage, meta } = await runCompletion(completionParams);
+    applyCompletionDiagnosticHeaders((name, value) => {
+      c.header(name, value);
+    }, meta);
     return c.json(
       buildChatCompletion({
         id: id.startsWith("chatcmpl-") ? id : `chatcmpl-${id}`,

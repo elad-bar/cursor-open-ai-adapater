@@ -7,6 +7,12 @@ export interface Env {
   mcpGatewayUrl: string | undefined;
   /** Seconds of SDK silence before emitting a streaming keepalive chunk; 0 disables. */
   streamIdleHeartbeatSeconds: number;
+  /** Evict idle agent sessions from the in-memory map. */
+  agentSessionTtlSeconds: number;
+  /** Max entries in the agent session map (LRU eviction). */
+  agentSessionMaxEntries: number;
+  /** Optional request header name for external session id; unset uses OpenAI `user` only. */
+  agentSessionHeader: string | undefined;
 }
 
 let cached: Env | undefined;
@@ -47,6 +53,20 @@ export function getEnv(): Env {
     throw new Error(`Invalid STREAM_IDLE_HEARTBEAT_SECONDS: ${heartbeatRaw}`);
   }
 
+  const sessionTtlRaw = process.env.AGENT_SESSION_TTL_SECONDS ?? "3600";
+  const agentSessionTtlSeconds = Number.parseInt(sessionTtlRaw, 10);
+  if (!Number.isFinite(agentSessionTtlSeconds) || agentSessionTtlSeconds < 0) {
+    throw new Error(`Invalid AGENT_SESSION_TTL_SECONDS: ${sessionTtlRaw}`);
+  }
+
+  const sessionMaxRaw = process.env.AGENT_SESSION_MAX_ENTRIES ?? "500";
+  const agentSessionMaxEntries = Number.parseInt(sessionMaxRaw, 10);
+  if (!Number.isFinite(agentSessionMaxEntries) || agentSessionMaxEntries < 1) {
+    throw new Error(`Invalid AGENT_SESSION_MAX_ENTRIES: ${sessionMaxRaw}`);
+  }
+
+  const agentSessionHeader = process.env.AGENT_SESSION_HEADER?.trim() || undefined;
+
   cached = {
     host: process.env.HOST ?? "0.0.0.0",
     port,
@@ -54,6 +74,9 @@ export function getEnv(): Env {
     modelsCacheTtlSeconds,
     mcpGatewayUrl,
     streamIdleHeartbeatSeconds,
+    agentSessionTtlSeconds,
+    agentSessionMaxEntries,
+    agentSessionHeader,
   };
 
   return cached;

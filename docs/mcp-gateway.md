@@ -2,7 +2,7 @@
 
 Attach a **streamable HTTP MCP gateway** to Cursor agent runs initiated by this OpenAI-compatible gateway. **Cursor** discovers and invokes tools on that endpoint; the upstream LLM client does not orchestrate tools via OpenAI `tools`.
 
-Typical use: an LLM proxy (e.g. **Archestra**) forwards chat completions here while users bring their own MCP gateway credentials.
+Typical use: an upstream OpenAI-compatible proxy forwards chat completions here while users bring their own MCP gateway credentials.
 
 ## Credentials (two per user)
 
@@ -11,7 +11,7 @@ Typical use: an LLM proxy (e.g. **Archestra**) forwards chat completions here wh
 | Cursor API key | `Authorization: Bearer <cursor_key>` | Cursor SDK (`apiKey`) |
 | MCP gateway token | `X-Mcp-Gateway-Token: <token>` | Bearer auth to `MCP_GATEWAY_URL` |
 
-The MCP token format depends on your gateway provider (e.g. Archestra personal `arch_…` from Settings).
+The MCP token format depends on your gateway provider.
 
 ## Gateway environment
 
@@ -27,7 +27,14 @@ Transport to Cursor SDK is always **`http`**.
 - `MCP_GATEWAY_URL` set + `X-Mcp-Gateway-Token` present → Cursor agent gets `mcpServers.gateway` with `Authorization: Bearer <token>`.
 - `MCP_GATEWAY_URL` set + header absent → Cursor run **without** MCP (no error).
 
-Structured logs include `mcp_attached: true|false` per completion; tokens are never logged.
+Structured logs include `mcp_attached`, `likely_double_orchestration`, and `tool_message_count` per completion; tokens are never logged.
+
+Response headers:
+
+- `X-Cursor-Gateway-Mcp-Attached: true|false`
+- `X-Cursor-Gateway-Likely-Double-Orchestration: true` when MCP is attached **and** the request `messages` already include `role: "tool"` (upstream platform ran tools before this call).
+
+**Avoid double orchestration:** use either upstream platform MCP/tools **or** gateway-injected MCP on Cursor runs—not both on the same agent.
 
 ## Setup (platform admin)
 
@@ -43,13 +50,6 @@ Structured logs include `mcp_attached: true|false` per completion; tokens are ne
 3. Chat with an agent that uses the Cursor model via the LLM proxy.
 
 Per-user MCP visibility depends on the gateway honoring the Bearer token on `MCP_GATEWAY_URL`.
-
-## Example: Archestra
-
-1. **MCP Gateways → plug/connection** → copy streamable HTTP URL → `MCP_GATEWAY_URL`.
-2. Provider API key = user’s Cursor key.
-3. Extra header **`X-Mcp-Gateway-Token`** = user’s **`arch_…`** from Archestra Settings (MCP Gateway / A2A token).
-4. Archestra must **forward `X-Mcp-Gateway-Token` on every** upstream `chat/completions` request (including follow-up turns).
 
 ## End-to-end flow
 
