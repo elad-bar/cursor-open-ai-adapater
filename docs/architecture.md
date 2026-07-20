@@ -73,12 +73,13 @@ Authorization: Bearer cursor_...
 
 ### 3. Request mapper (chat completions)
 
-**Input:** OpenAI `messages`, `model`, `stream`, optional `user`, `temperature` (ignore or map if Cursor supports via model params).
+**Input:** OpenAI `messages`, `model`, `stream`, optional `user`, `response_format`, `temperature` (ignore or map if Cursor supports via model params).
 
 **Prompt construction**
 
 - Merge `messages` into a single agent prompt (system + user/assistant history), or maintain session state (see below).
-- **v1 default:** stateless — one shot per request via `Agent.prompt(...)` or ephemeral `Agent.create` + `send` + dispose.
+- Multipart `messages` with `image_url` / `image` parts map to Cursor `SDKUserMessage` (`text` + `images`); text-only requests stay a single string prompt.
+- **v1 default:** stateless — one shot per request via ephemeral `Agent.create` + `send` + dispose (non-stream and stream).
 
 **Model**
 
@@ -100,6 +101,7 @@ See [mcp-gateway.md](mcp-gateway.md).
 **Output**
 
 - Non-stream: OpenAI `chat.completion` with `choices[0].message.content` and optional top-level `usage` when the SDK reports token counts.
+- When the client sets `response_format` to `json_object` or `json_schema`, the gateway adds JSON-only instructions to the prompt and normalizes assistant output to a compact JSON object string before returning it (streaming buffers assistant text until the run completes, then emits one content chunk). Invalid JSON yields an OpenAI-style error (502). The gateway does not validate application-specific schemas; clients parse and validate JSON after the response.
 - Stream: SSE chunks with `delta.content` from SDK run stream (assistant text blocks in v1). When `STREAM_IDLE_HEARTBEAT_SECONDS` > 0, also emit minimal invisible keepalive content during SDK silence so OpenAI clients (e.g. Archestra) detect response progress during long tool runs.
 - Stream usage: when the client sets `stream_options.include_usage: true`, emit a trailing `chat.completion.chunk` with empty `choices` and `usage` (same fields as non-stream) after the `finish_reason: stop` chunk, if the SDK reported usage.
 - Omit `usage` when the SDK does not report counts (non-stream and stream).

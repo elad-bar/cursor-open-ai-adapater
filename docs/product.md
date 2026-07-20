@@ -43,6 +43,8 @@ Invalid or missing keys → OpenAI-style `401` with a clear error (not a generic
 - OpenAI-compatible **`/v1/models`** and **`/v1/chat/completions`**.
 - Model list from **`Cursor.models.list()`** for the authenticated key.
 - Non-streaming and streaming assistant **text** in the response.
+- Multipart **`messages`** with text and image parts (vision-capable model required; remote image URLs must be reachable from the Cursor runtime).
+- **`response_format`** JSON mode (`json_object`, best-effort `json_schema` instructions): normalized JSON-only `message.content` when requested; passthrough agent text otherwise.
 - Documented behavior for Archestra LLM proxy setup.
 - **Local-only** Cursor SDK runtime (`process.cwd()` workspace; not user-configurable).
 - **MCP gateway injection:** when `MCP_GATEWAY_URL` is set, attach streamable HTTP MCP to Cursor runs when clients send **`X-Mcp-Gateway-Token`** (per-user Bearer to the remote gateway). See [mcp-gateway.md](mcp-gateway.md).

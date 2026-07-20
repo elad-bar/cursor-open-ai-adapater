@@ -22,7 +22,10 @@ describe("messagesToPrompt", () => {
     const prompt = messagesToPrompt([
       {
         role: "user",
-        content: [{ text: "line1" }, { text: "line2" }],
+        content: [
+          { type: "text", text: "line1" },
+          { type: "text", text: "line2" },
+        ],
       },
     ]);
     assert.match(prompt, /line1\nline2/);

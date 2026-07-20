@@ -1,10 +1,17 @@
-import type { ChatMessage } from "../types/openai.js";
+import type { ChatContentPart, ChatMessage } from "../types/openai.js";
+
+function partText(part: ChatContentPart): string {
+  if (part.type === "text") {
+    return part.text;
+  }
+  return "";
+}
 
 function messageText(content: ChatMessage["content"]): string {
   if (content === null || content === undefined) return "";
   if (typeof content === "string") return content;
   return content
-    .map((part) => part.text ?? "")
+    .map((part) => partText(part))
     .filter(Boolean)
     .join("\n");
 }

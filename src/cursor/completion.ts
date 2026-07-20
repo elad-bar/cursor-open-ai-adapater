@@ -4,9 +4,11 @@ import {
   type AgentOptions,
   type RunResult,
   type SDKMessage,
+  type SDKUserMessage,
   type TextBlock,
 } from "@cursor/sdk";
 import { getAgentWorkingDirectory, getEnv } from "../config/env.js";
+import type { AgentInput } from "../openai/messages-to-agent-input.js";
 import {
   STREAM_IDLE_HEARTBEAT_CHAR,
   withIdleHeartbeats,
@@ -39,6 +41,13 @@ function buildAgentOptions(
       settingSources: [],
     },
   };
+}
+
+function toSendPayload(input: AgentInput): string | SDKUserMessage {
+  if (input.type === "string") {
+    return input.value;
+  }
+  return input.value;
 }
 
 function assistantTextFromMessage(message: SDKMessage): string {
@@ -85,11 +94,12 @@ function handleRunResult(result: RunResult, model: string, requestId: string): {
 export async function runCompletion(params: {
   apiKey: string;
   model: string;
-  prompt: string;
+  input: AgentInput;
   requestId: string;
   mcpServers?: AgentOptions["mcpServers"];
 }): Promise<{ content: string; id: string; usage: RunResult["usage"] }> {
   const options = buildAgentOptions(params.apiKey, params.model, params.mcpServers);
+  const payload = toSendPayload(params.input);
 
   logCompletion({
     request_id: params.requestId,
@@ -99,7 +109,9 @@ export async function runCompletion(params: {
   });
 
   try {
-    const result = await Agent.prompt(params.prompt, options);
+    await using agent = await Agent.create(options);
+    const run = await agent.send(payload);
+    const result = await run.wait();
     return handleRunResult(result, params.model, params.requestId);
   } catch (err) {
     if (err instanceof CompletionRunError) {
@@ -121,14 +133,15 @@ export async function runCompletion(params: {
 export async function* streamCompletion(params: {
   apiKey: string;
   model: string;
-  prompt: string;
+  input: AgentInput;
   requestId: string;
   mcpServers?: AgentOptions["mcpServers"];
 }): AsyncGenerator<string, RunResult, void> {
   const options = buildAgentOptions(params.apiKey, params.model, params.mcpServers);
+  const payload = toSendPayload(params.input);
 
   await using agent = await Agent.create(options);
-  const run = await agent.send(params.prompt);
+  const run = await agent.send(payload);
 
   logCompletion({
     request_id: params.requestId,
@@ -199,3 +212,5 @@ export async function* streamCompletion(params: {
 export function cursorAgentErrorStatus(err: CursorAgentError): number {
   return err.isRetryable ? 503 : 502;
 }
+
+export { STREAM_IDLE_HEARTBEAT_CHAR };
