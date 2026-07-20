@@ -38,9 +38,11 @@ docker compose pull
 docker compose up
 ```
 
-Health: `curl http://localhost:8080/health`
+Health (uses container `PORT`, default `8080`): `curl http://localhost:${PORT:-8080}/health`
 
-Models: `curl http://localhost:8080/v1/models -H "Authorization: Bearer $CURSOR_API_KEY"`
+Container and image health checks probe `http://127.0.0.1:$PORT/health` with the same default.
+
+Models: `curl http://localhost:${PORT:-8080}/v1/models -H "Authorization: Bearer $CURSOR_API_KEY"`
 
 ## Environment variables
 
